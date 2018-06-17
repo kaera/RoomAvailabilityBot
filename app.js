@@ -1,16 +1,15 @@
 const axios = require('axios');
 const express = require('express');
 const tokens = require('./tokens');
-const POLL_INTERVAL = 1;
-const pollingData = {};
-const timeouts = {};
 
+const POLL_INTERVAL = 30;
+const pollingData = {};
 const app = express();
 
 function sendMessage(chatId, text) {
 	return axios.post(`https://api.telegram.org/bot${ tokens.botToken }/sendMessage`, {
 		chat_id: chatId,
-		text: text
+		text: text.replace(/^\s+/g, '')
 	});
 }
 
@@ -31,16 +30,23 @@ function poll(chatId, date) {
 			if (data[date] === undefined) {
 				// Date is invalid
 				// Stop polling and send message
-				sendMessage(chatId, `Unable to poll for date ${ date } as it's out of range. Please specify another date.`);
-				delete pollingData[chatId];
+				sendMessage(chatId, `Unable to poll for date ${ date } as it's out of range.
+					Please specify another date.`);
+				clearData(chatId);
 			} else if (data[date] === 0) {
 				// Continue polling
-				timeouts[chatId] = setTimeout(poll, POLL_INTERVAL * 60 * 1000, chatId, date);
-				sendMessage(chatId, `${ data[date] } places found for date ${ date }. Try again in ${ POLL_INTERVAL } min.`);
+				pollingData[chatId] = {
+					date: date,
+					timeout: setTimeout(poll, POLL_INTERVAL * 60 * 1000, chatId, date)
+				};
+				// sendMessage(chatId, `${ data[date] } places found for date ${ date }. Trying again in ${ POLL_INTERVAL } min.`);
 			} else {
 				// Places are found
 				// Stop polling and send message
-				sendMessage(chatId, `${ data[date] } places found for date ${ date }! You can book them here: http://refugedugouter.ffcam.fr/resapublic.html.`);
+				sendMessage(chatId, `${ data[date] } places found for date ${ date }!
+
+					You can book them here: http://refugedugouter.ffcam.fr/resapublic.html.`);
+				clearData(chatId);
 			}
 		});
 }
@@ -48,9 +54,9 @@ function poll(chatId, date) {
 function handleStartPolling(chatId, date) {
 	let responseText = '';
 	if (pollingData[chatId]) {
-		responseText = 'Polling cancelled for date ' + pollingData[chatId] + '.\n\n';
+		responseText = 'Polling cancelled for date ' + pollingData[chatId].date + '.\n\n';
+		clearData(chatId);
 	}
-	pollingData[chatId] = date;
 	responseText += 'Starting polling availability for date ' + date;
 	poll(chatId, date);
 
@@ -58,9 +64,16 @@ function handleStartPolling(chatId, date) {
 }
 
 function handleStopCommand(chatId) {
-	clearTimeout(timeouts[chatId]);
-	delete pollingData[chatId];
-	return sendMessage(chatId, 'Polling cancelled for date ' + pollingData[chatId]);
+	const date = pollingData[chatId] && pollingData[chatId].date;
+	clearData(chatId);
+	return sendMessage(chatId, 'Polling cancelled for date ' + date);
+}
+
+function clearData(chatId) {
+	if (pollingData[chatId]) {
+		clearTimeout(pollingData[chatId].timeout);
+		delete pollingData[chatId];
+	}
 }
 
 app.use(express.json());
@@ -70,11 +83,15 @@ app.get('/', (req, res) => {
 });
 
 app.get('/getInfo', (req, res) => {
-	res.status(200).send(pollingData);
+	const result = {};
+	for (let chatId in pollingData) {
+		result[chatId] = { date: pollingData[chatId].date };
+	}
+	res.status(200).send(result);
 });
 
 app.get('/start', (req, res) => {
-	handleStartPolling(Number(req.query.chatId), req.query.date)
+	handleStartPolling(req.query.chatId, req.query.date)
 		.then(function () {
 			res.send({ status: 'ok'});
 		})
@@ -85,7 +102,7 @@ app.get('/start', (req, res) => {
 });
 
 app.get('/stop', (req, res) => {
-	handleStopCommand(Number(req.query.chatId))
+	handleStopCommand(req.query.chatId)
 		.then(function () {
 			res.send({ status: 'ok'});
 		})
@@ -99,13 +116,19 @@ app.post('/bot/' + tokens.webhookToken, (req, res) => {
 	const message = req.body.message;
 	const chatId = message.chat.id;
 	let handlerPromise;
-	if (message.text === '/poll') {
-		handlerPromise = sendMessage(chatId, 'Please enter the date in format YYYY-MM-DD, e.g. 2018-07-10');
+	if (message.text === '/start') {
+		handlerPromise = sendMessage(chatId, `Hi. I'm here to help you find available places in Refuge du Goûter.
+
+		I can understand the following commands:
+			/poll: Init polling. This will ask you to type the date in format YYYY-MM-DD.
+			/stop: Stop polling`);
+	} else if (message.text === '/poll') {
+		handlerPromise = sendMessage(chatId, 'Please type the date in format YYYY-MM-DD, e.g. 2018-07-10');
 	} else if (message.text.match(/20\d\d-\d\d-\d\d/)) {
 		const date = message.text.match(/20\d\d-\d\d-\d\d/)[0];
-		handlerPromise = handleStartPolling(chatId, date)
+		handlerPromise = handleStartPolling(chatId, date);
 	} else if (message.text === '/stop') {
-		handlerPromise = handleStopCommand(chatId)
+		handlerPromise = handleStopCommand(chatId);
 	} else {
 		console.log(message.text);
 		handlerPromise = sendMessage(chatId, 'Couldn\'t recognize the message. Please, try again :)');
@@ -120,6 +143,11 @@ app.post('/bot/' + tokens.webhookToken, (req, res) => {
 			res.sendStatus(500);
 		});
 });
+
+const initData = require('./init_data');
+for (let chatId in initData) {
+	poll(chatId, initData[chatId].date);
+}
 
 if (module === require.main) {
 	const server = app.listen(process.env.PORT || 8080, () => {
