@@ -30,8 +30,8 @@ function poll(chatId, date) {
 			if (data[date] === undefined) {
 				// Date is invalid
 				// Stop polling and send message
-				sendMessage(chatId, `Unable to poll for date ${ date } as it's out of range.
-					Please specify another date.`);
+				sendMessage(chatId, 'Unable to poll for date ' + date + ' as it\'s out of range.\n' +
+					'Please specify another date.');
 				clearData(chatId);
 			} else if (data[date] === 0) {
 				// Continue polling
@@ -43,9 +43,8 @@ function poll(chatId, date) {
 			} else {
 				// Places are found
 				// Stop polling and send message
-				sendMessage(chatId, `${ data[date] } places found for date ${ date }!
-
-					You can book them here: http://refugedugouter.ffcam.fr/resapublic.html.`);
+				sendMessage(chatId, data[date] + ' places found for date ' + date + '!\n\n' +
+					'You can book them here: http://refugedugouter.ffcam.fr/resapublic.html.');
 				clearData(chatId);
 			}
 		});
@@ -66,7 +65,7 @@ function handleStartPolling(chatId, date) {
 function handleStopCommand(chatId) {
 	const date = pollingData[chatId] && pollingData[chatId].date;
 	clearData(chatId);
-	return sendMessage(chatId, 'Polling cancelled for date ' + date);
+	return sendMessage(chatId, date ? 'Polling cancelled for date ' + date : 'No polling process to stop.');
 }
 
 function clearData(chatId) {
@@ -113,15 +112,19 @@ app.get('/stop', (req, res) => {
 });
 
 app.post('/bot/' + tokens.webhookToken, (req, res) => {
-	const message = req.body.message;
+	const message = req.body.message || req.body.edited_message;
+	if (!message) {
+		console.log(JSON.stringify(req.body));
+		res.send({ status: 'OK' });
+		return;
+	}
 	const chatId = message.chat.id;
 	let handlerPromise;
 	if (message.text === '/start') {
-		handlerPromise = sendMessage(chatId, `Hi. I'm here to help you find available places in Refuge du Goûter.
-
-		I can understand the following commands:
-			/poll: Init polling. This will ask you to type the date in format YYYY-MM-DD.
-			/stop: Stop polling`);
+		handlerPromise = sendMessage(chatId, 'Hi. I\'m here to help you find available places in Refuge du Goûter.\n\n' +
+		'I can understand the following commands:\n' +
+		'	/poll: Init polling. This will ask you to type the date in format YYYY-MM-DD.\n' +
+		'	/stop: Stop polling');
 	} else if (message.text === '/poll') {
 		handlerPromise = sendMessage(chatId, 'Please type the date in format YYYY-MM-DD, e.g. 2018-07-10');
 	} else if (message.text.match(/20\d\d-\d\d-\d\d/)) {
