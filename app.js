@@ -29,16 +29,20 @@ app.get('/', (req, res) => {
 
 app.post('/bot/' + tokens.webhookToken, (req, res) => {
 	const message = req.body.message;
-	let responseText;
+	const username = message.from.username;
+	let responseText = '';
 	if (message.text === '/poll') {
 		// 1. Init polling
 		responseText = 'Please enter the date in format YYYY-MM-DD, e.g. 2018-07-10';
 	} else if (message.text.match(/20\d\d-\d\d-\d\d/)) {
 		const date = message.text.match(/20\d\d-\d\d-\d\d/)[0];
-		pollingData[message.from.username] = date;
-		responseText = 'Starting polling availability for date ' + date;
+		if (pollingData[username]) {
+			responseText = 'Polling cancelled for date ' + pollingData[username] + '.\n\n';
+		}
+		pollingData[username] = date;
+		responseText += 'Starting polling availability for date ' + date;
 	} else if (message.text === '/stop') {
-		responseText = 'Polling cancelled for date ' + pollingData[message.from.username];
+		responseText = 'Polling cancelled for date ' + pollingData[username];
 	} else {
 		responseText = `Hello ${message.from.first_name} ${message.from.last_name}!
       
