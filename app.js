@@ -2,7 +2,7 @@ const axios = require('axios');
 const express = require('express');
 const tokens = require('./tokens');
 
-const POLL_INTERVAL = 30;
+const POLL_INTERVAL = 10;
 const pollingData = {};
 const app = express();
 
@@ -75,6 +75,16 @@ function clearData(chatId) {
 	}
 }
 
+function checkStatus(chatId) {
+	let text;
+	if (pollingData[chatId]) {
+		text = 'Polling is on for ' + pollingData[chatId].date;
+	} else {
+		text = 'No dates for polling';
+	}
+	return sendMessage(chatId, text);
+}
+
 app.use(express.json());
 
 app.get('/', (req, res) => {
@@ -87,6 +97,16 @@ app.get('/getInfo', (req, res) => {
 		result[chatId] = { date: pollingData[chatId].date };
 	}
 	res.status(200).send(result);
+});
+app.get('/status', (req, res) => {
+	checkStatus(req.query.chatId)
+		.then(function () {
+			res.send({ status: 'ok'});
+		})
+		.catch(error => {
+			console.log(error);
+			res.status(500).send('Error');
+		});
 });
 
 app.get('/start', (req, res) => {
@@ -132,6 +152,8 @@ app.post('/bot/' + tokens.webhookToken, (req, res) => {
 		handlerPromise = handleStartPolling(chatId, date);
 	} else if (message.text === '/stop') {
 		handlerPromise = handleStopCommand(chatId);
+	} else if (message.text === '/status') {
+		handlerPromise = checkStatus(chatId);
 	} else {
 		console.log(message.text);
 		handlerPromise = sendMessage(chatId, 'Couldn\'t recognize the message. Please, try again :)');
