@@ -89,13 +89,6 @@ function handleClearCommand(chatId) {
 	return sendMessage(chatId, message);
 }
 
-function clearData(chatId) {
-	if (pollingData[chatId]) {
-		clearTimeout(pollingData[chatId].timeout);
-		delete pollingData[chatId];
-	}
-}
-
 function checkStatus(chatId) {
 	const dates = pollingData[chatId] && [...pollingData[chatId].dates].sort() || [];
 	let message;
@@ -166,17 +159,30 @@ app.post('/bot/' + tokens.webhookToken, (req, res) => {
 	if (message.text === '/start') {
 		handlerPromise = sendMessage(chatId, 'Hi. I\'m here to help you find available places in Refuge du Goûter.\n\n' +
 		'I can understand the following commands:\n' +
-		'	/poll: Init polling. This will ask you to type the date in format YYYY-MM-DD.\n' +
-		'	/stop: Stop polling');
-	} else if (message.text === '/poll') {
-		handlerPromise = sendMessage(chatId, 'Please type the date in format YYYY-MM-DD, e.g. 2018-07-10');
-	} else if (message.text.match(/20\d\d-\d\d-\d\d/)) {
-		const date = message.text.match(/20\d\d-\d\d-\d\d/)[0];
-		handlerPromise = handleStartPolling(chatId, date);
-	} else if (message.text === '/stop') {
-		handlerPromise = handleStopPolling(chatId);
+		'	/status: List current polling processes.\n' +
+		'	poll [date]: Init polling for a date in format YYYY-MM-DD, e.g. "poll 2018-07-10".\n' +
+		'	stop [date]: Stop polling for a date in format YYYY-MM-DD, e.g. "stop 2018-07-10".\n' +
+		'	/clear: Stop all polling processes.');
 	} else if (message.text === '/status') {
 		handlerPromise = checkStatus(chatId);
+	} else if (message.text === '/clear') {
+		handlerPromise = handleClearCommand(chatId);
+	} else if (message.text.startsWith('poll')) {
+		const date = message.text.match(/20\d\d-\d\d-\d\d/);
+		if (date) {
+			handlerPromise = handleStartPolling(chatId, date[0]);
+		} else {
+			handlerPromise = sendMessage(chatId, 'Couldn\'t parse the date. ' +
+				'Please enter the date in format YYYY-MM-DD, e.g. "poll 2018-07-10".');
+		}
+	} else if (message.text.startsWith('stop')) {
+		const date = message.text.match(/20\d\d-\d\d-\d\d/);
+		if (date) {
+			handlerPromise = handleStopPolling(chatId, date[0]);
+		} else {
+			handlerPromise = sendMessage(chatId, 'Couldn\'t parse the date. ' +
+				'Please enter the date in format YYYY-MM-DD, e.g. "stop 2018-07-10".');
+		}
 	} else {
 		console.log(message.text);
 		handlerPromise = sendMessage(chatId, 'Couldn\'t recognize the message. Please, try again :)');
