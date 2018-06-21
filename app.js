@@ -37,32 +37,40 @@ function removeDate(chatId, date) {
 	}
 }
 
-function poll(chatId, date) {
+function poll(chatId) {
 	return fetchAvailabilityData()
 		.then(data => {
-			if (data[date] === undefined) {
-				// Date is invalid
-				// Stop polling and send message
-				sendMessage(chatId, 'Unable to poll for date ' + date + ' as it\'s out of range.\n' +
-					'Please specify another date.');
-				removeDate(chatId, date);
-			} else if (data[date] === 0) {
-				// Continue polling
-				addDate(chatId, date);
-				pollingData[chatId].timeout = setTimeout(poll, POLL_INTERVAL * 60 * 1000, chatId, date);
-				// sendMessage(chatId, `${ data[date] } places found for date ${ date }. Trying again in ${ POLL_INTERVAL } min.`);
-			} else {
-				// Places are found
-				// Stop polling and send message
-				sendMessage(chatId, data[date] + ' places found for date ' + date + '!\n\n' +
+			const dates = [...pollingData[chatId].dates];
+			const invalidDates = [];
+			const pendingDates = [];
+			const availableDates = [];
+			dates.forEach(date => {
+				if (data[date] === undefined) {
+					invalidDates.push(date);
+					removeDate(chatId, date);
+				} else if (data[date] === 0) {
+					pendingDates.push(date);
+				} else {
+					availableDates.push(date);
+					removeDate(chatId, date);
+				}
+			});
+			if (invalidDates.length) {
+				sendMessage(chatId, 'Unable to poll for date ' + invalidDates.join(', ') + ' as it\'s out of range');
+			}
+			if (pendingDates.length) {
+				pollingData[chatId].timeout = setTimeout(poll, POLL_INTERVAL * 60 * 1000, chatId);
+			}
+			if (availableDates.length) {
+				sendMessage(chatId, 'Places found for date ' + availableDates.join(', ') + '.\n\n' +
 					'You can book them here: http://refugedugouter.ffcam.fr/resapublic.html.');
-				removeDate(chatId, date);
 			}
 		});
 }
 
 function handleStartPolling(chatId, date) {
-	poll(chatId, date);
+	addDate(chatId, date);
+	poll(chatId);
 	return sendMessage(chatId, 'Starting polling availability for date ' + date);
 }
 
@@ -200,7 +208,8 @@ app.post('/bot/' + tokens.webhookToken, (req, res) => {
 
 const initData = require('./init_data');
 for (let chatId in initData) {
-	poll(chatId, initData[chatId].dates);
+	initData[chatId].dates.forEach(date => addDate(chatId, date));
+	poll(chatId);
 }
 
 if (module === require.main) {
