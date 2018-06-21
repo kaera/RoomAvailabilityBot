@@ -9,7 +9,7 @@ const app = express();
 function sendMessage(chatId, text) {
 	return axios.post(`https://api.telegram.org/bot${ tokens.botToken }/sendMessage`, {
 		chat_id: chatId,
-		text: text.replace(/^\s+/g, '')
+		text: text
 	});
 }
 
@@ -24,6 +24,19 @@ function fetchAvailabilityData() {
 		});
 }
 
+function addDate(chatId, date) {
+	if (!pollingData[chatId]) {
+		pollingData[chatId] = { dates: new Set() };
+	}
+	pollingData[chatId].dates.add(date);
+}
+
+function removeDate(chatId, date) {
+	if (pollingData[chatId]) {
+		pollingData[chatId].dates.delete(date);
+	}
+}
+
 function poll(chatId, date) {
 	return fetchAvailabilityData()
 		.then(data => {
@@ -32,40 +45,48 @@ function poll(chatId, date) {
 				// Stop polling and send message
 				sendMessage(chatId, 'Unable to poll for date ' + date + ' as it\'s out of range.\n' +
 					'Please specify another date.');
-				clearData(chatId);
+				removeDate(chatId, date);
 			} else if (data[date] === 0) {
 				// Continue polling
-				pollingData[chatId] = {
-					date: date,
-					timeout: setTimeout(poll, POLL_INTERVAL * 60 * 1000, chatId, date)
-				};
+				addDate(chatId, date);
+				pollingData[chatId].timeout = setTimeout(poll, POLL_INTERVAL * 60 * 1000, chatId, date);
 				// sendMessage(chatId, `${ data[date] } places found for date ${ date }. Trying again in ${ POLL_INTERVAL } min.`);
 			} else {
 				// Places are found
 				// Stop polling and send message
 				sendMessage(chatId, data[date] + ' places found for date ' + date + '!\n\n' +
 					'You can book them here: http://refugedugouter.ffcam.fr/resapublic.html.');
-				clearData(chatId);
+				removeDate(chatId, date);
 			}
 		});
 }
 
 function handleStartPolling(chatId, date) {
-	let responseText = '';
-	if (pollingData[chatId]) {
-		responseText = 'Polling cancelled for date ' + pollingData[chatId].date + '.\n\n';
-		clearData(chatId);
-	}
-	responseText += 'Starting polling availability for date ' + date;
 	poll(chatId, date);
-
-	return sendMessage(chatId, responseText);
+	return sendMessage(chatId, 'Starting polling availability for date ' + date);
 }
 
-function handleStopCommand(chatId) {
-	const date = pollingData[chatId] && pollingData[chatId].date;
-	clearData(chatId);
-	return sendMessage(chatId, date ? 'Polling cancelled for date ' + date : 'No polling process to stop.');
+function handleStopPolling(chatId, date) {
+	let message;
+	if (pollingData[chatId] && pollingData[chatId].dates.has(date)) {
+		message = 'Polling cancelled for date ' + date;
+		removeDate(chatId, date);
+	} else {
+		message = 'There were no polling processes for date ' + date;
+	}
+	return sendMessage(chatId, message);
+}
+
+function handleClearCommand(chatId) {
+	const dates = pollingData[chatId] && [...pollingData[chatId].dates].sort() || [];
+	let message;
+	if (dates.length) {
+		message = 'Polling processes for dates ' + dates.join(', ') + ' are stopped';
+		pollingData[chatId].dates.clear();
+	} else {
+		message = 'No processes to stop';
+	}
+	return sendMessage(chatId, message);
 }
 
 function clearData(chatId) {
@@ -76,13 +97,14 @@ function clearData(chatId) {
 }
 
 function checkStatus(chatId) {
-	let text;
-	if (pollingData[chatId]) {
-		text = 'Polling is on for ' + pollingData[chatId].date;
+	const dates = pollingData[chatId] && [...pollingData[chatId].dates].sort() || [];
+	let message;
+	if (dates.length) {
+		message = 'Polling processes are run for dates ' + dates.join(', ');
 	} else {
-		text = 'No dates for polling';
+		message = 'No processes running';
 	}
-	return sendMessage(chatId, text);
+	return sendMessage(chatId, message);
 }
 
 app.use(express.json());
@@ -94,10 +116,11 @@ app.get('/', (req, res) => {
 app.get('/getInfo', (req, res) => {
 	const result = {};
 	for (let chatId in pollingData) {
-		result[chatId] = { date: pollingData[chatId].date };
+		result[chatId] = { dates: [...pollingData[chatId].dates].sort() };
 	}
 	res.status(200).send(result);
 });
+
 app.get('/status', (req, res) => {
 	checkStatus(req.query.chatId)
 		.then(function () {
@@ -121,7 +144,7 @@ app.get('/start', (req, res) => {
 });
 
 app.get('/stop', (req, res) => {
-	handleStopCommand(req.query.chatId)
+	handleStopPolling(req.query.chatId, req.query.date)
 		.then(function () {
 			res.send({ status: 'ok'});
 		})
@@ -151,7 +174,7 @@ app.post('/bot/' + tokens.webhookToken, (req, res) => {
 		const date = message.text.match(/20\d\d-\d\d-\d\d/)[0];
 		handlerPromise = handleStartPolling(chatId, date);
 	} else if (message.text === '/stop') {
-		handlerPromise = handleStopCommand(chatId);
+		handlerPromise = handleStopPolling(chatId);
 	} else if (message.text === '/status') {
 		handlerPromise = checkStatus(chatId);
 	} else {
@@ -171,7 +194,7 @@ app.post('/bot/' + tokens.webhookToken, (req, res) => {
 
 const initData = require('./init_data');
 for (let chatId in initData) {
-	poll(chatId, initData[chatId].date);
+	poll(chatId, initData[chatId].dates);
 }
 
 if (module === require.main) {
