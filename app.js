@@ -2,7 +2,8 @@ const axios = require('axios');
 const express = require('express');
 const tokens = require('./tokens');
 
-const POLL_INTERVAL = 10;
+let pollInterval = 10 * 60;
+let dataCache;
 const pollingData = {};
 const app = express();
 
@@ -20,7 +21,15 @@ function fetchAvailabilityData() {
 		    data: 'structure=BK_STRUCTURE:30'
 		})
 		.then(function (response) {
-			return JSON.parse(response.data.match(/globalAvailability = (.*?);/)[1]);
+			const data = response.data.match(/globalAvailability = (.*?);/)[1];
+			if (data === dataCache) {
+				pollInterval = Math.min(pollInterval * 2, 30 * 60);
+			} else {
+				pollInterval = Math.max(pollInterval / 2, 10);
+			}
+			dataCache = data;
+			console.log('pollInterval', pollInterval);
+			return JSON.parse(data);
 		});
 }
 
@@ -59,7 +68,7 @@ function poll(chatId) {
 				sendMessage(chatId, 'Unable to poll for date ' + invalidDates.join(', ') + ' as it\'s out of range');
 			}
 			if (pendingDates.length) {
-				pollingData[chatId].timeout = setTimeout(poll, POLL_INTERVAL * 60 * 1000, chatId);
+				pollingData[chatId].timeout = setTimeout(poll, pollInterval * 1000, chatId);
 			}
 			if (availableDates.length) {
 				sendMessage(chatId, 'Places found for date ' + availableDates.join(', ') + '.\n\n' +
@@ -112,6 +121,10 @@ app.use(express.json());
 
 app.get('/', (req, res) => {
 	res.status(200).send('Hello, my bot!');
+});
+
+app.get('/getDataCache', (req, res) => {
+	res.status(200).send(dataCache);
 });
 
 app.get('/getInfo', (req, res) => {
