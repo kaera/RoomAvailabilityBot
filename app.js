@@ -22,12 +22,12 @@ function fetchAvailabilityData() {
 		})
 		.then(function (response) {
 			const data = response.data.match(/globalAvailability = (.*?);/)[1];
-			if (data === dataCache) {
-				pollInterval = Math.min(pollInterval * 2, 30 * 60);
-			} else {
-				pollInterval = Math.max(pollInterval / 2, 10);
-			}
-			dataCache = data;
+			//if (data === dataCache) {
+			//	pollInterval = Math.min(pollInterval * 2, 30 * 60);
+			//} else {
+			//	pollInterval = Math.max(pollInterval / 2, 10);
+			//}
+			//dataCache = data;
 			console.log('pollInterval', pollInterval);
 			return JSON.parse(data);
 		});
