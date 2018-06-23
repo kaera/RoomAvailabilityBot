@@ -2,7 +2,8 @@ const axios = require('axios');
 const express = require('express');
 const tokens = require('./tokens');
 
-let pollInterval = 10 * 60;
+let pollInterval = 10 * 60 * 1000;
+let requestTimeoutId;
 let dataCache;
 const pollingData = {};
 const app = express();
@@ -14,10 +15,38 @@ function sendMessage(chatId, text) {
 	});
 }
 
-function fetchAvailabilityData() {
-	return axios({
+const PubSub = {
+	subscribers: {
+		update: {}
+	},
+	subscribe: function(event, id, f) {
+		this.subscribers[event][id] = f;
+	},
+	unsubscribe: function(event, id) {
+		delete this.subscribers[event][id];
+	},
+	isSubscribed: function(event, id) {
+		return this.subscribers[event][id];
+	},
+	trigger: function(event, data) {
+		for (let f of Object.values(this.subscribers[event])) {
+			f(data);
+		}
+	}
+};
+
+function requestUpdate() {
+	if (Object.values(PubSub.subscribers.update).length === 0) {
+		console.log('No subscribers registered. Halting the polling process.');
+		return;
+	}
+
+	const url = 'https://centrale.ffcam.fr/index.php';
+	console.log('Sending request to', url);
+	clearTimeout(requestTimeoutId);
+	axios({
 		    method: 'post',
-		    url: 'https://centrale.ffcam.fr/index.php',
+		    url: url,
 		    data: 'structure=BK_STRUCTURE:30'
 		})
 		.then(function (response) {
@@ -29,7 +58,12 @@ function fetchAvailabilityData() {
 			//}
 			//dataCache = data;
 			//console.log('pollInterval', pollInterval);
-			return JSON.parse(data);
+			PubSub.trigger('update', JSON.parse(data));
+			requestTimeoutId = setTimeout(requestUpdate, pollInterval);
+		})
+		.catch(function (error) {
+			console.log(error);
+			requestTimeoutId = setTimeout(requestUpdate, pollInterval);
 		});
 }
 
@@ -38,29 +72,19 @@ function addDate(chatId, date) {
 		pollingData[chatId] = { dates: new Set() };
 	}
 	pollingData[chatId].dates.add(date);
-}
-
-function removeDate(chatId, date) {
-	if (pollingData[chatId]) {
-		pollingData[chatId].dates.delete(date);
-	}
-}
-
-function poll(chatId) {
-	return fetchAvailabilityData()
-		.then(data => {
+	console.log('Date', date, 'added for chat id', chatId);
+	if (!PubSub.isSubscribed('update', chatId)) {
+		console.log('Chat id', chatId, 'has subscribed for data updates');
+		PubSub.subscribe('update', chatId, function(data) {
 			const dates = [...pollingData[chatId].dates];
 			const invalidDates = [];
-			const pendingDates = [];
 			const availableDates = [];
 			console.log('Checking data for chat id:', chatId, 'dates: ', dates.join(', '));
 			dates.forEach(date => {
 				if (data[date] === undefined) {
 					invalidDates.push(date);
 					removeDate(chatId, date);
-				} else if (data[date] === 0) {
-					pendingDates.push(date);
-				} else {
+				} else if (data[date] > 0) {
 					availableDates.push(date);
 					removeDate(chatId, date);
 				}
@@ -68,20 +92,28 @@ function poll(chatId) {
 			if (invalidDates.length) {
 				sendMessage(chatId, 'Unable to poll for date ' + invalidDates.join(', ') + ' as it\'s out of range');
 			}
-			if (pendingDates.length) {
-				pollingData[chatId].timeout = setTimeout(poll, pollInterval * 1000, chatId);
-			}
 			if (availableDates.length) {
 				sendMessage(chatId, 'Places found for date ' + availableDates.join(', ') + '.\n\n' +
 					'You can book them here: http://refugedugouter.ffcam.fr/resapublic.html.');
 				console.log('Sending success message for chat id:', chatId, 'date:', availableDates.join(', '));
 			}
 		});
+	}
+}
+
+function removeDate(chatId, date) {
+	if (pollingData[chatId]) {
+		pollingData[chatId].dates.delete(date);
+		if (pollingData[chatId].dates.size === 0) {
+			PubSub.unsubscribe('update', chatId);
+			console.log('Chat id', chatId, 'has unsubscribed from data updates');
+		}
+	}
 }
 
 function handleStartPolling(chatId, date) {
 	addDate(chatId, date);
-	poll(chatId);
+	requestUpdate();
 	return sendMessage(chatId, 'Starting polling availability for date ' + date);
 }
 
@@ -224,8 +256,8 @@ app.post('/bot/' + tokens.webhookToken, (req, res) => {
 const initData = require('./init_data');
 for (let chatId in initData) {
 	initData[chatId].dates.forEach(date => addDate(chatId, date));
-	poll(chatId);
 }
+requestUpdate();
 
 if (module === require.main) {
 	const server = app.listen(process.env.PORT || 8080, () => {
