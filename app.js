@@ -28,7 +28,7 @@ function fetchAvailabilityData() {
 			//	pollInterval = Math.max(pollInterval / 2, 10);
 			//}
 			//dataCache = data;
-			console.log('pollInterval', pollInterval);
+			//console.log('pollInterval', pollInterval);
 			return JSON.parse(data);
 		});
 }
@@ -53,6 +53,7 @@ function poll(chatId) {
 			const invalidDates = [];
 			const pendingDates = [];
 			const availableDates = [];
+			console.log('Checking data for chat id:', chatId, 'dates: ', dates.join(', '));
 			dates.forEach(date => {
 				if (data[date] === undefined) {
 					invalidDates.push(date);
@@ -73,6 +74,7 @@ function poll(chatId) {
 			if (availableDates.length) {
 				sendMessage(chatId, 'Places found for date ' + availableDates.join(', ') + '.\n\n' +
 					'You can book them here: http://refugedugouter.ffcam.fr/resapublic.html.');
+				console.log('Sending success message for chat id:', chatId, 'date:', availableDates.join(', '));
 			}
 		});
 }
