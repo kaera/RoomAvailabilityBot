@@ -215,14 +215,14 @@ app.post('/bot/' + tokens.webhookToken, (req, res) => {
 		handlerPromise = sendMessage(chatId, 'Hi. I\'m here to help you find available places in Refuge du Goûter.\n\n' +
 		'I can understand the following commands:\n' +
 		'	/status: List current polling processes.\n' +
-		'	poll [date]: Init polling for a date in format YYYY-MM-DD, e.g. "poll 2018-07-10".\n' +
-		'	stop [date]: Stop polling for a date in format YYYY-MM-DD, e.g. "stop 2018-07-10".\n' +
+		'	poll [date]: Init polling for a date in format YYYY-MM-DD, e.g. poll 2018-07-10.\n' +
+		'	stop [date]: Stop polling for a date in format YYYY-MM-DD, e.g. stop 2018-07-10.\n' +
 		'	/clear: Stop all polling processes.');
 	} else if (message.text === '/status') {
 		handlerPromise = checkStatus(chatId);
 	} else if (message.text === '/clear') {
 		handlerPromise = handleClearCommand(chatId);
-	} else if (message.text.match(/^poll/i)) {
+	} else if (message.text.match(/^\/?poll/i)) {
 		const date = message.text.match(/20\d\d-\d\d-\d\d/);
 		if (date) {
 			handlerPromise = handleStartPolling(chatId, date[0]);
@@ -230,7 +230,7 @@ app.post('/bot/' + tokens.webhookToken, (req, res) => {
 			handlerPromise = sendMessage(chatId, 'Couldn\'t parse the date. ' +
 				'Please enter the date in format YYYY-MM-DD, e.g. "poll 2018-07-10".');
 		}
-	} else if (message.text.match(/^stop/i)) {
+	} else if (message.text.match(/^\/?stop/i)) {
 		const date = message.text.match(/20\d\d-\d\d-\d\d/);
 		if (date) {
 			handlerPromise = handleStopPolling(chatId, date[0]);
@@ -240,7 +240,11 @@ app.post('/bot/' + tokens.webhookToken, (req, res) => {
 		}
 	} else {
 		console.log(message.text);
-		handlerPromise = sendMessage(chatId, 'Couldn\'t recognize the message. Please, try again :)');
+		handlerPromise = sendMessage(chatId, 'I can understand the following commands:\n' +
+		'	/status: List current polling processes.\n' +
+		'	poll [date]: Init polling for a date in format YYYY-MM-DD, e.g. poll 2018-07-10.\n' +
+		'	stop [date]: Stop polling for a date in format YYYY-MM-DD, e.g. stop 2018-07-10.\n' +
+		'	/clear: Stop all polling processes.');
 	}
     
 	handlerPromise
