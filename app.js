@@ -2,7 +2,7 @@ const axios = require('axios');
 const express = require('express');
 const tokens = require('./tokens');
 
-let pollInterval = 10 * 60 * 1000;
+let pollInterval = 5 * 60 * 1000;
 let requestTimeoutId;
 let dataCache;
 const pollingData = {};
