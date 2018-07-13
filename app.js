@@ -86,7 +86,7 @@ function addDate(chatId, date) {
 					removeDate(chatId, date);
 				} else if (data[date] > 0) {
 					availableDates.push(date);
-					removeDate(chatId, date);
+					//removeDate(chatId, date);
 				}
 			});
 			if (invalidDates.length) {
