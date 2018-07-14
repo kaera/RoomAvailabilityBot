@@ -1,7 +1,6 @@
 {
   "name": "refugedugouterbot-207411",
   "version": "1.0.0",
-  "description": "",
   "main": "index.js",
   "scripts": {
     "start": "node app.js",
@@ -11,9 +10,19 @@
   "license": "ISC",
   "dependencies": {
     "axios": "^0.18.0",
-    "express": "^4.16.3"
+    "express": "^4.16.3",
+    "mongodb": "^3.1.1"
   },
   "devDependencies": {
     "nodemon": "^1.17.5"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kaera/RoomAvailabilityBot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kaera/RoomAvailabilityBot/issues"
+  },
+  "homepage": "https://github.com/kaera/RoomAvailabilityBot#readme",
+  "description": ""
 }

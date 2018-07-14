@@ -1,6 +1,7 @@
 const axios = require('axios');
 const express = require('express');
 const tokens = require('./tokens');
+const db = require('./db-client');
 
 let pollInterval = 5 * 60 * 1000;
 let requestTimeoutId;
@@ -51,13 +52,6 @@ function requestUpdate() {
 		})
 		.then(function (response) {
 			const data = response.data.match(/globalAvailability = (.*?);/)[1];
-			//if (data === dataCache) {
-			//	pollInterval = Math.min(pollInterval * 2, 30 * 60);
-			//} else {
-			//	pollInterval = Math.max(pollInterval / 2, 10);
-			//}
-			//dataCache = data;
-			//console.log('pollInterval', pollInterval);
 			PubSub.trigger('update', JSON.parse(data));
 			requestTimeoutId = setTimeout(requestUpdate, pollInterval);
 		})
@@ -157,8 +151,17 @@ app.get('/', (req, res) => {
 	res.status(200).send('Hello, my bot!');
 });
 
-app.get('/getDataCache', (req, res) => {
-	res.status(200).send(dataCache);
+app.get('/set', (req, res) => {
+	db.updateDate(req.query.chatId, req.query.date)
+		.then(_ => {
+			res.status(200).send('ok');
+		});
+});
+app.get('/del', (req, res) => {
+	db.removeDate(req.query.chatId, req.query.date)
+		.then(_ => {
+			res.status(200).send('ok');
+		});
 });
 
 app.get('/getInfo', (req, res) => {
@@ -256,12 +259,6 @@ app.post('/bot/' + tokens.webhookToken, (req, res) => {
 			res.sendStatus(500);
 		});
 });
-
-const initData = require('./init_data');
-for (let chatId in initData) {
-	initData[chatId].dates.forEach(date => addDate(chatId, date));
-}
-requestUpdate();
 
 if (module === require.main) {
 	const server = app.listen(process.env.PORT || 8080, () => {
