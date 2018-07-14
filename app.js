@@ -1,7 +1,9 @@
 const axios = require('axios');
 const express = require('express');
 const tokens = require('./tokens');
-const db = require('./db-client');
+const DbClient = require('./db-client');
+
+let db = new DbClient(tokens.db);
 
 let pollInterval = 5 * 60 * 1000;
 let requestTimeoutId;
@@ -42,13 +44,13 @@ function requestUpdate() {
 		return;
 	}
 
-	const url = 'https://centrale.ffcam.fr/index.php';
+	const url = tokens.urlRefuge;
 	console.log('Sending request to', url);
 	clearTimeout(requestTimeoutId);
 	axios({
 		    method: 'post',
 		    url: url,
-		    data: 'structure=BK_STRUCTURE:30'
+		    data: tokens.dataRefuge
 		})
 		.then(function (response) {
 			const data = response.data.match(/globalAvailability = (.*?);/)[1];
@@ -152,7 +154,7 @@ app.get('/', (req, res) => {
 });
 
 app.get('/set', (req, res) => {
-	db.updateDate(req.query.chatId, req.query.date)
+	db.updateOrCreateDate(req.query.chatId, req.query.date)
 		.then(_ => {
 			res.status(200).send('ok');
 		});
@@ -163,6 +165,13 @@ app.get('/del', (req, res) => {
 			res.status(200).send('ok');
 		});
 });
+app.get('/getData', (req, res) => {
+	db.getUserDates(req.query.chatId, req.query.date)
+		.then(_ => {
+			res.status(200).send('ok');
+		});
+});
+
 
 app.get('/getInfo', (req, res) => {
 	const result = {};
