@@ -150,58 +150,6 @@ app.get('/', (req, res) => {
 	res.status(200).send('Hello, my bot!');
 });
 
-app.get('/set', (req, res) => {
-	db.updateOrCreateDate(req.query.chatId, req.query.date)
-		.then(_ => {
-			res.status(200).send('ok');
-		});
-});
-app.get('/del', (req, res) => {
-	db.removeDate(req.query.chatId, req.query.date)
-		.then(_ => {
-			res.status(200).send('ok');
-		});
-});
-app.get('/getData', (req, res) => {
-	db.getUserDates(req.query.chatId, req.query.date)
-		.then(_ => {
-			res.status(200).send('ok');
-		});
-});
-
-app.get('/status', (req, res) => {
-	checkStatus(req.query.chatId)
-		.then(function () {
-			res.send({ status: 'ok'});
-		})
-		.catch(error => {
-			console.log(error);
-			res.status(500).send('Error');
-		});
-});
-
-app.get('/start', (req, res) => {
-	handleStartPolling(req.query.chatId, req.query.date)
-		.then(function () {
-			res.send({ status: 'ok'});
-		})
-		.catch(error => {
-			console.log(error);
-			res.status(500).send('Error');
-		});
-});
-
-app.get('/stop', (req, res) => {
-	handleStopPolling(req.query.chatId, req.query.date)
-		.then(function () {
-			res.send({ status: 'ok'});
-		})
-		.catch(error => {
-			console.log(error);
-			res.status(500).send('Error');
-		});
-});
-
 app.post('/bot/' + tokens.webhookToken, (req, res) => {
 	const message = req.body.message || req.body.edited_message;
 	if (!message) {
