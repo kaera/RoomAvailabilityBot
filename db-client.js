@@ -40,7 +40,7 @@ class Client {
           if (err) {
             throw err;
           }
-          console.log(`Added ${date} for ${chatId}`);
+          console.log(`DataBase. Added date: ${date} for chat id: ${chatId}`);
           connection.close();
           resolve(dbResponse);
         });
@@ -54,7 +54,7 @@ class Client {
         if (err) {
           throw err;
         }
-        console.log(`Removed ${date} for ${chatId}`)
+        console.log(`DataBase: Removed date: ${date} for chat id: ${chatId}`);
         connection.close();
       });
   }
@@ -65,7 +65,6 @@ class Client {
 
     const chatData = await collection.findOne({ chatId: chatId });
     const dates = chatData ? chatData.dates : [];
-    console.log(`All data for ${chatId}:`, dates);
     await connection.close();
     return dates;
   }
@@ -75,7 +74,7 @@ class Client {
     const collection = this._getCollection(connection);
 
     const chatData = await collection.remove({ chatId: chatId });
-    console.log(`Data cleared for ${chatId}`);
+    console.log(`DataBase. All data cleared for chat id: ${chatId}`);
     await connection.close();
   }
 
