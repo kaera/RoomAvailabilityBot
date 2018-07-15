@@ -67,7 +67,7 @@ async function addDate(chatId, date) {
 	console.log('Date', date, 'added for chat id', chatId);
 	if (!PubSub.isSubscribed('update', chatId)) {
 		console.log('Chat id', chatId, 'has subscribed for data updates');
-		PubSub.subscribe('update', chatId, function(data) {
+		PubSub.subscribe('update', chatId, async function(data) {
 			const dates = await db.getUserDates(chatId);
 
 			const invalidDates = [];
@@ -95,7 +95,7 @@ async function addDate(chatId, date) {
 }
 
 async function removeDate(chatId, date) {
-	await db.removeDate(chatId, data);
+	await db.removeDate(chatId, date);
 	const dates = await db.getUserDates(chatId);
 	if (dates.length === 0) {
 		PubSub.unsubscribe('update', chatId);
@@ -112,7 +112,7 @@ function handleStartPolling(chatId, date) {
 async function handleStopPolling(chatId, date) {
 	let message;
 	const dates = await db.getUserDates(chatId);
-	if (dates.length) {
+	if (dates.includes(date)) {
 		message = 'Polling cancelled for date ' + date;
 		removeDate(chatId, date);
 	} else {
