@@ -7,8 +7,6 @@ let db = new DbClient(tokens.db);
 
 let pollInterval = 5 * 60 * 1000;
 let requestTimeoutId;
-let dataCache;
-const pollingData = {};
 const app = express();
 
 function sendMessage(chatId, text) {
@@ -63,16 +61,15 @@ function requestUpdate() {
 		});
 }
 
-function addDate(chatId, date) {
-	if (!pollingData[chatId]) {
-		pollingData[chatId] = { dates: new Set() };
-	}
-	pollingData[chatId].dates.add(date);
+async function addDate(chatId, date) {
+	await db.updateOrCreateDate(chatId, date);
+
 	console.log('Date', date, 'added for chat id', chatId);
 	if (!PubSub.isSubscribed('update', chatId)) {
 		console.log('Chat id', chatId, 'has subscribed for data updates');
 		PubSub.subscribe('update', chatId, function(data) {
-			const dates = [...pollingData[chatId].dates];
+			const dates = await db.getUserDates(chatId);
+
 			const invalidDates = [];
 			const availableDates = [];
 			console.log('Checking data for chat id:', chatId, 'dates: ', dates.join(', '));
@@ -97,13 +94,12 @@ function addDate(chatId, date) {
 	}
 }
 
-function removeDate(chatId, date) {
-	if (pollingData[chatId]) {
-		pollingData[chatId].dates.delete(date);
-		if (pollingData[chatId].dates.size === 0) {
-			PubSub.unsubscribe('update', chatId);
-			console.log('Chat id', chatId, 'has unsubscribed from data updates');
-		}
+async function removeDate(chatId, date) {
+	await db.removeDate(chatId, data);
+	const dates = await db.getUserDates(chatId);
+	if (dates.length === 0) {
+		PubSub.unsubscribe('update', chatId);
+		console.log('Chat id', chatId, 'has unsubscribed from data updates');
 	}
 }
 
@@ -113,9 +109,10 @@ function handleStartPolling(chatId, date) {
 	return sendMessage(chatId, 'Starting polling availability for date ' + date);
 }
 
-function handleStopPolling(chatId, date) {
+async function handleStopPolling(chatId, date) {
 	let message;
-	if (pollingData[chatId] && pollingData[chatId].dates.has(date)) {
+	const dates = await db.getUserDates(chatId);
+	if (dates.length) {
 		message = 'Polling cancelled for date ' + date;
 		removeDate(chatId, date);
 	} else {
@@ -124,23 +121,23 @@ function handleStopPolling(chatId, date) {
 	return sendMessage(chatId, message);
 }
 
-function handleClearCommand(chatId) {
-	const dates = pollingData[chatId] && [...pollingData[chatId].dates].sort() || [];
+async function handleClearCommand(chatId) {
+	const dates = await db.getUserDates(chatId);
 	let message;
 	if (dates.length) {
-		message = 'Polling processes for dates ' + dates.join(', ') + ' are stopped';
-		pollingData[chatId].dates.clear();
+		message = 'Polling processes for dates ' + dates.sort().join(', ') + ' are stopped';
+		db.clearDates(chatId);
 	} else {
 		message = 'No processes to stop';
 	}
 	return sendMessage(chatId, message);
 }
 
-function checkStatus(chatId) {
-	const dates = pollingData[chatId] && [...pollingData[chatId].dates].sort() || [];
+async function checkStatus(chatId) {
+	const dates = await db.getUserDates(chatId);
 	let message;
 	if (dates.length) {
-		message = 'Polling processes are run for dates ' + dates.join(', ');
+		message = 'Polling processes are run for dates ' + dates.sort().join(', ');
 	} else {
 		message = 'No processes running';
 	}
@@ -170,15 +167,6 @@ app.get('/getData', (req, res) => {
 		.then(_ => {
 			res.status(200).send('ok');
 		});
-});
-
-
-app.get('/getInfo', (req, res) => {
-	const result = {};
-	for (let chatId in pollingData) {
-		result[chatId] = { dates: [...pollingData[chatId].dates].sort() };
-	}
-	res.status(200).send(result);
 });
 
 app.get('/status', (req, res) => {

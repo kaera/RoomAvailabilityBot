@@ -19,6 +19,13 @@ describe('DB client', function() {
     });
   });
 
+  it('should not return non existent record', async function() {
+    const client = await getConnection();
+    const chat = await client.db('refuge').collection('test').findOne({ chatId: 111 });
+    assert.equal(chat, null);
+    await client.close();
+  });
+
   describe('#constructor()', function() {
     it('should initialize successfully', function() {
       const db = new DbClient({});
@@ -49,6 +56,41 @@ describe('DB client', function() {
     it('should successfully remove a record', function(done) {
       db.removeDate(123123, '2018-07-01')
         .then(_ => done());
+    });
+
+  });
+
+  describe('#getUserDates()', function() {
+
+    it('should return dates for existing chat', async function() {
+      const dates = await db.getUserDates(123123);
+      assert.deepEqual(dates, ['2018-11-23']);
+    });
+
+    it('should return empty list for non existing chat', async function() {
+      const dates = await db.getUserDates(111);
+      assert.deepEqual(dates, []);
+    });
+
+  });
+
+  describe('#clearDates()', function() {
+
+    beforeEach(async function() {
+      const connection = await getConnection();
+      const collection = await connection.db('refuge').collection('test');
+      collection.updateOne({ chatId: 111 }, { $addToSet: { dates: '2018-01-01' }, $setOnInsert: { chatId: 111 } });
+      await connection.close();
+    });
+
+    it('should remove all records for a given chat', async function() {
+      await db.clearDates(111);
+
+      const connection = await getConnection();
+      const collection = await connection.db('refuge').collection('test');
+      const chatData = await collection.findOne({ chatId: 111 });
+      assert.equal(chatData, null);
+      await connection.close();
     });
 
   });

@@ -64,18 +64,20 @@ class Client {
       .db(this._name)
       .collection('test');
 
-    return new Promise((resolve, reject) => {
-      collection.findOne({chatId: chatId}, (err, data) => {
-        if (err) {
-          throw err;
-        }
-        console.log(`All data for ${chatId}:`);
-        console.log(data.dates);
-        connection.close();
-        resolve(data.dates);
-      });
+    const chatData = await collection.findOne({ chatId: chatId });
+    const dates = chatData ? chatData.dates : [];
+    console.log(`All data for ${chatId}:`, dates);
+    await connection.close();
+    return dates;
+  }
 
-    })
+  async clearDates(chatId) {
+    const connection = await this._getConnection();
+    const collection = connection.db(this._name).collection('test');
+
+    const chatData = await collection.remove({ chatId: chatId });
+    console.log(`Data cleared for ${chatId}`);
+    await connection.close();
   }
 
 }
