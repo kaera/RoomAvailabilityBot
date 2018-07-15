@@ -4,12 +4,13 @@ const mongodb = require('mongodb');
 
 class Client {
   constructor(config) {
-    const { user, pass, host, port, name } = config;
+    const { user, pass, host, port, name, collection } = config;
     if (user && pass) {
       this._uri = `mongodb://${user}:${pass}@${host}:${port}/${name}`;
     } else {
       this._uri = `mongodb://${host}:${port}/${name}`;
     }
+    this._collection = collection;
     this._name = name;
   }
 
@@ -27,12 +28,14 @@ class Client {
     });
   }
 
+  _getCollection(connection) {
+    return connection.db(this._name).collection(this._collection);
+  }
+
   async updateOrCreateDate(chatId, date) {
     const connection = await this._getConnection();
     return new Promise((resolve, reject) => {
-      connection
-        .db(this._name)
-        .collection('test')
+      this._getCollection(connection)
         .updateOne({chatId: chatId}, {$addToSet: {dates: date}, $setOnInsert: {chatId: chatId} }, { upsert: true }, (err, dbResponse) => {
           if (err) {
             throw err;
@@ -46,9 +49,7 @@ class Client {
 
   async removeDate(chatId, date) {
     const connection = await this._getConnection();
-    return connection
-      .db(this._name)
-      .collection('test')
+    return this._getCollection(connection)
       .updateOne({chatId: chatId}, {$pull: {dates: date}}, (err) => {
         if (err) {
           throw err;
@@ -60,9 +61,7 @@ class Client {
 
   async getUserDates(chatId) {
     const connection = await this._getConnection();
-    const collection = connection
-      .db(this._name)
-      .collection('test');
+    const collection = this._getCollection(connection);
 
     const chatData = await collection.findOne({ chatId: chatId });
     const dates = chatData ? chatData.dates : [];
@@ -73,7 +72,7 @@ class Client {
 
   async clearDates(chatId) {
     const connection = await this._getConnection();
-    const collection = connection.db(this._name).collection('test');
+    const collection = this._getCollection(connection);
 
     const chatData = await collection.remove({ chatId: chatId });
     console.log(`Data cleared for ${chatId}`);
