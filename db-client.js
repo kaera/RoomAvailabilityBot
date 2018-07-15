@@ -5,11 +5,15 @@ const mongodb = require('mongodb');
 class Client {
   constructor(config) {
     const { user, pass, host, port, name } = config;
-    this._uri = `mongodb://${user}:${pass}@${host}:${port}/${name}`;
+    if (user && pass) {
+      this._uri = `mongodb://${user}:${pass}@${host}:${port}/${name}`;
+    } else {
+      this._uri = `mongodb://${host}:${port}/${name}`;
+    }
     this._name = name;
   }
 
-  async _getCollection() {
+  async _getConnection() {
     return new Promise((resolve, reject) => {
 
       mongodb.MongoClient.connect(this._uri, { useNewUrlParser: true }, (err, client) => {
@@ -17,36 +21,49 @@ class Client {
           reject(err);
         }
 
-        const db = client.db(this._name);
-        const collection = db.collection('test');
-        resolve(collection);
+        resolve(client);
       });
 
     });
   }
 
   async updateOrCreateDate(chatId, date) {
-    const collection = await this._getCollection();
-    return collection.updateOne({chatId: chatId}, {$addToSet: {dates: date}, $setOnInsert: {chatId: chatId} }, { upsert: true }, (err) => {
-      if (err) {
-        throw err;
-      }
-      console.log(`Added ${date} for ${chatId}`);
-    });
+    const connection = await this._getConnection();
+    return new Promise((resolve, reject) => {
+      connection
+        .db(this._name)
+        .collection('test')
+        .updateOne({chatId: chatId}, {$addToSet: {dates: date}, $setOnInsert: {chatId: chatId} }, { upsert: true }, (err, dbResponse) => {
+          if (err) {
+            throw err;
+          }
+          console.log(`Added ${date} for ${chatId}`);
+          connection.close();
+          resolve(dbResponse);
+        });
+    })
   }
 
   async removeDate(chatId, date) {
-    const collection = await this._getCollection();
-    return collection.updateOne({chatId: chatId}, {$pull: {dates: date}}, (err) => {
-      if (err) {
-        throw err;
-      }
-      console.log(`Removed ${date} for ${chatId}`)
-    });
+    const connection = await this._getConnection();
+    return connection
+      .db(this._name)
+      .collection('test')
+      .updateOne({chatId: chatId}, {$pull: {dates: date}}, (err) => {
+        if (err) {
+          throw err;
+        }
+        console.log(`Removed ${date} for ${chatId}`)
+        connection.close();
+      });
   }
 
   async getUserDates(chatId) {
-    const collection = await this._getCollection();
+    const connection = await this._getConnection();
+    const collection = connection
+      .db(this._name)
+      .collection('test');
+
     return new Promise((resolve, reject) => {
       collection.findOne({chatId: chatId}, (err, data) => {
         if (err) {
@@ -54,6 +71,7 @@ class Client {
         }
         console.log(`All data for ${chatId}:`);
         console.log(data.dates);
+        connection.close();
         resolve(data.dates);
       });
 
