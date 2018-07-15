@@ -4,9 +4,12 @@ const mongodb = require('mongodb');
 const DbClient = require('../db-client');
 
 const collectionName = 'polling_data';
+const dbName = 'refuge_test';
+const host = 'localhost';
+const port = '27017';
 const getConnection = () =>
-  mongodb.MongoClient.connect('mongodb://localhost:27017/refuge', { useNewUrlParser: true });
-const getCollection = connection => connection.db('refuge').collection(collectionName);
+  mongodb.MongoClient.connect(`mongodb://${host}:${port}/${dbName}`, { useNewUrlParser: true });
+const getCollection = connection => connection.db(dbName).collection(collectionName);
 
 describe('DB client', function() {
 
@@ -15,9 +18,9 @@ describe('DB client', function() {
   beforeEach(async function() {
     db = new DbClient({
       collection: collectionName,
-      host: 'localhost',
-      name: 'refuge',
-      port: '27017'
+      host: host,
+      name: dbName,
+      port: port
     });
     const connection = await getConnection();
     await getCollection(connection).remove({});
