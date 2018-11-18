@@ -1,5 +1,5 @@
 # RoomAvailabilityBot
-### Setup instractions
+### Setup instructions
 
 ```
 git clone https://github.com/kaera/RoomAvailabilityBot.git
@@ -7,7 +7,7 @@ cd RoomAvailabilityBot
 npm install && npm start
 
 ```
-### WebHook setup instractions
+### WebHook setup instructions
 
 ```
 https://api.telegram.org/bot{my_bot_token}/setWebhook?url={url_to_send_updates_to}/bot/{webhook_token}
